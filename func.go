@@ -160,7 +160,7 @@ func Daemon(skip ...string) {
 				newCmd = append(newCmd, v)
 			}
 		}
-		Println("go deam args:", newCmd)
+		Println("go daemon args:", newCmd)
 		cmd := exec.Command(filePath)
 		cmd.Args = newCmd
 		cmd.Start()
@@ -505,9 +505,7 @@ type GBValueWeightPair struct {
 }
 
 func NewValueWeightPair() *GBValueWeightPair {
-	vwp := new(GBValueWeightPair)
-	vwp.valuelist = make([]*valueWeightItem, 0, 0)
-	return vwp
+	return &GBValueWeightPair{}
 }
 
 func (this *GBValueWeightPair) Add(weight uint32, value uint64) {
@@ -520,6 +518,9 @@ func (this *GBValueWeightPair) Add(weight uint32, value uint64) {
 }
 
 func (this *GBValueWeightPair) Random() uint64 {
+	if 1 == len(this.valuelist) {
+		return this.valuelist[0].value
+	}
 	if this.allweight > 0 {
 		randvalue := uint32(rand.Intn(int(this.allweight))) + 1 //[1,allweight]
 		addweight := uint32(0)
@@ -532,7 +533,9 @@ func (this *GBValueWeightPair) Random() uint64 {
 	}
 	return 0
 }
-
+func (this *GBValueWeightPair) GetValueList() []*valueWeightItem {
+	return this.valuelist
+}
 func SafeSubInt32(a, b int32) int32 {
 	if a > b {
 		return a - b
@@ -558,4 +561,22 @@ func SafeSubInt64(a, b int64) int64 {
 		return a - b
 	}
 	return 0
+}
+
+//三元运算符
+func Ternary(val1 bool, ret1, ret2 interface{}) interface{} {
+	if val1 {
+		return ret1
+	}
+	return ret2
+}
+
+func Shuffle(slice []interface{}) {
+	r := rand.New(rand.NewSource(time.Now().Unix()))
+	for len(slice) > 0 {
+		n := len(slice)
+		randIndex := r.Intn(n)
+		slice[n-1], slice[randIndex] = slice[randIndex], slice[n-1]
+		slice = slice[:n-1]
+	}
 }

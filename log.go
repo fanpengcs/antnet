@@ -93,7 +93,7 @@ func (r *FileLogger) Write(str string) {
 
 type HttpLogger struct {
 	Url     string
-	Get    bool
+	Get     bool
 	GetKey  string
 	Timeout int
 }
@@ -118,7 +118,7 @@ func (r *HttpLogger) Write(str string) {
 		} else {
 			resp, _ = c.Post(r.Url, "application/x-www-form-urlencoded", strings.NewReader(str))
 		}
-		
+
 		if resp != nil && resp.Body != nil {
 			resp.Body.Close()
 		}
@@ -134,6 +134,7 @@ const (
 	LogLevelError                  //一般错误，可能导致功能不正常
 	LogLevelFatal                  //严重错误，会导致进程退出
 	LogLevelAllOff                 //关闭所有日志
+	LogLevelBill                   //日志统计
 )
 
 var LogLevelNameMap = map[string]LogLevel{
@@ -143,6 +144,7 @@ var LogLevelNameMap = map[string]LogLevel{
 	"error": LogLevelError,
 	"fatal": LogLevelFatal,
 	"off":   LogLevelAllOff,
+	"bill":  LogLevelBill,
 }
 
 type Log struct {
@@ -163,7 +165,7 @@ func (r *Log) initFileLogger(f *FileLogger) *FileLogger {
 		f.dirname = path.Dir(f.Path)
 		f.extname = path.Ext(f.Path)
 		f.filename = filepath.Base(f.Path[0 : len(f.Path)-len(f.extname)])
-		os.MkdirAll(f.dirname, 0666)
+		os.MkdirAll(f.dirname, 0775)
 		file, err := os.OpenFile(f.Path, os.O_RDWR|os.O_APPEND|os.O_CREATE, 0666)
 		if err == nil {
 			f.file = file
@@ -300,10 +302,12 @@ func (r *Log) write(levstr string, v ...interface{}) {
 		return
 	}
 	prefix := levstr
-	_, file, line, ok := runtime.Caller(3)
-	if ok {
-		i := strings.LastIndex(file, "/") + 1
-		prefix = fmt.Sprintf("[%s][%s][%s:%d]:", levstr, Date(), (string)(([]byte(file))[i:]), line)
+	if r.Level() != LogLevelBill {
+		_, file, line, ok := runtime.Caller(3)
+		if ok {
+			i := strings.LastIndex(file, "/") + 1
+			prefix = fmt.Sprintf("[%s][%s][%s:%d]:", levstr, Date(), (string)(([]byte(file))[i:]), line)
+		}
 	}
 	if len(v) > 1 {
 		r.cwrite <- prefix + fmt.Sprintf(v[0].(string), v[1:]...)
@@ -340,6 +344,10 @@ func (r *Log) Fatal(v ...interface{}) {
 	if r.level <= LogLevelFatal {
 		r.write("FATAL", v...)
 	}
+}
+
+func (r *Log) Bill(v ...interface{}) {
+	r.write("", v...)
 }
 
 func (r *Log) Write(v ...interface{}) {

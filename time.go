@@ -12,12 +12,35 @@ func Date() string {
 	return time.Now().Format("2006-01-02 15:04:05")
 }
 
+func TimeToDate(sec int64) string {
+	return time.Unix(sec, 0).Format("2006-01-02 15:04:05")
+}
+
+func GetCurrentTimeString() string {
+	return TimeString
+}
+
+func GetCurrentHourString() string {
+	return time.Unix(Timestamp, 0).Format("2006010215")
+}
+
+func GetLastHourString() string {
+	t, _ := time.ParseDuration("-1h")
+	return time.Unix(Timestamp, 0).Add(t).Format("2006010215")
+}
+
 func UnixTime(sec, nsec int64) time.Time {
 	return time.Unix(sec, nsec)
 }
 
 func UnixMs() int64 {
-	return time.Now().UnixNano() / 1000000
+	return NowTick
+	// return time.Now().UnixNano() / 1000000
+}
+
+func UnixS() int64 {
+	return Timestamp
+	// return time.Now().UnixNano() / 1000000000
 }
 
 func UnixNano() int64 {
@@ -72,16 +95,24 @@ func SetTimeout(inteval int, fn func(...interface{}) int, args ...interface{}) {
 }
 
 func timerTick() {
-	StartTick = time.Now().UnixNano() / 1000000
+	now := time.Now()
+	StartTick = now.UnixNano() / 1000000
 	NowTick = StartTick
 	Timestamp = NowTick / 1000
+	TimeString = now.Format("2006-01-02 15:04:05")
+	lastTimestamp := Timestamp
 	var ticker = time.NewTicker(time.Millisecond)
 	Go(func() {
 		for IsRuning() {
 			select {
 			case <-ticker.C:
-				NowTick = time.Now().UnixNano() / 1000000
+				now := time.Now()
+				NowTick = now.UnixNano() / 1000000
 				Timestamp = NowTick / 1000
+				if Timestamp != lastTimestamp {
+					lastTimestamp = Timestamp
+					TimeString = now.Format("2006-01-02 15:04:05")
+				}
 			}
 		}
 		ticker.Stop()
@@ -107,6 +138,23 @@ func GetNextHourIntervalMS() int {
 }
 
 /**
+* 获取指定间隔时间,单位ms
+* gap秒数
+ */
+func GetNextInterval(gap int32) int {
+	return int(gap-int32(Timestamp%int64(gap))) * 1000
+}
+
+/**
+* @brief 获得timestamp距离下个天的时间，单位s
+*
+* @return uint32_t 距离下个天的时间，单位s
+ */
+func GetNextDayIntervalS(timezone int) int {
+	return int(86400 - (Timestamp%86400 + int64(timezone*3600)))
+}
+
+/**
 * @brief 时间戳转换为小时，24小时制，0点用24表示
 *
 * @param timestamp 时间戳
@@ -114,7 +162,7 @@ func GetNextHourIntervalMS() int {
 * @return uint32_t 小时 范围 1-24
  */
 func GetHour24(timestamp int64, timezone int) int {
-	hour := (int((timestamp%86400)/3600) + timezone)
+	hour := int((timestamp%86400)/3600) + timezone
 	if hour > 24 {
 		return hour - 24
 	}
@@ -152,6 +200,12 @@ func IsDiffDay(now, old int64, timezone int) int {
 	now += int64(timezone * 3600)
 	old += int64(timezone * 3600)
 	return int((now / 86400) - (old / 86400))
+}
+
+func IsDiffDayMs(now, old int64, timezone int) int {
+	now += int64(timezone * 3600000)
+	old += int64(timezone * 3600000)
+	return int((now / 86400000) - (old / 86400000))
 }
 
 /**
@@ -221,6 +275,51 @@ func ZeroTime(timezone int) int64 {
 	return t.Unix() - int64(timezone*3600)
 }
 
+/* 指定时间零点
+ * timezone 时区
+ * return 零点时间
+ */
+func DayZeroTime(year, mon, day int, timezone int) int64 {
+	t := time.Date(year, time.Month(mon), day, 0, 0, 0, 0, time.UTC)
+	return t.Unix() - int64(timezone*3600)
+}
+
+/**
+* 获取指定时间的下一天
+* return 秒数
+ */
+func GetNextDays(year, mon, day int, timezone int) int64 {
+	timeTick := DayZeroTime(year, mon, day, timezone)
+	return timeTick + 86400
+}
+
+/**
+* 获取指定时间的下一天
+* return 20000101
+ */
+func GetNextDay(year, mon, day int, timezone int) int32 {
+	timeTick := GetNextDays(year, mon, day, timezone)
+	return YMDay(timeTick, timezone)
+}
+
+/**
+* 获取指定时间的前一天
+* return 秒数
+ */
+func GetLastDays(year, mon, day int, timezone int) int64 {
+	timeTick := DayZeroTime(year, mon, day, timezone)
+	return timeTick - 86400
+}
+
+/**
+* 获取指定时间的前一天
+* return 20000101
+ */
+func GetLastDay(year, mon, day int, timezone int) int32 {
+	timeTick := GetLastDays(year, mon, day, timezone)
+	return YMDay(timeTick, timezone)
+}
+
 /* 年月日
  * timestamp 时间
  * timezone 时区
@@ -230,4 +329,24 @@ func YearMonthDay(timestamp int64, timezone int) (int32, int32, int32) {
 	timestamp += int64(timezone * 3600)
 	year, month, day := time.Unix(timestamp, 0).UTC().Date()
 	return int32(year), int32(month), int32(day)
+}
+
+/*
+ * timestamp 时间
+ * timezone 时区
+ * return 20200101
+ */
+func YMDay(timestamp int64, timezone int) int32 {
+	year, month, day := YearMonthDay(timestamp, timezone)
+	return year*10000 + month*100 + day
+}
+
+/*时间字符串转时间戳
+toBeCharge 待转换的时间 xxxx-xx-xx xx:xx:xx
+*/
+func StringToTimeStamp(toBeCharge string) int64 {
+	timeLayout := "2006-01-02 15:04:05"                             //转化所需模板
+	loc, _ := time.LoadLocation("Local")                            //重要：获取时区
+	theTime, _ := time.ParseInLocation(timeLayout, toBeCharge, loc) //使用模板在对应时区转化为time.time类型
+	return theTime.Unix()
 }

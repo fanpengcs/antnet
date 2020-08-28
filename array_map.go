@@ -1,109 +1,96 @@
 package antnet
 
-import (
-	"sync"
-	"sync/atomic"
-)
-
-type arrayMap struct {
-	rawCap   int
-	safe     bool
-	genArray []interface{}
-	delArray []int32
-	sync.Mutex
-	genIndex int32
-	delIndex int32
+type ArrayMap struct {
+	cap        int32
+	rawCap     int32
+	genArray   []interface{}
+	delArray   []int32
+	generArray []int32
+	genIndex   int32
+	delIndex   int32
 }
 
-func NewArrayMap(cap int, threadSafe bool) *arrayMap {
-	return &arrayMap{
-		rawCap:   cap,
-		safe:     threadSafe,
-		genArray: make([]interface{}, cap),
-		delArray: make([]int32, cap),
-		genIndex: -1,
-		delIndex: -1,
+func (r *ArrayMap) Clone() *ArrayMap {
+	return &ArrayMap{
+		cap:        r.cap,
+		rawCap:     r.rawCap,
+		genArray:   append([]interface{}{}, r.genArray...),
+		delArray:   append([]int32{}, r.delArray...),
+		generArray: append([]int32{}, r.generArray...),
+		genIndex:   r.genIndex,
+		delIndex:   r.delIndex,
 	}
 }
 
-func (r *arrayMap) addSafe(value interface{}) int32 {
-	var id int32 = -1
-	for r.delIndex > 0 && id == -1 {
-		ov := r.delIndex
-		nv := r.delIndex - 1
-		if nv >= 0 {
-			if atomic.CompareAndSwapInt32(&r.delIndex, ov, nv) {
-				id = r.delArray[ov]
-			}
-		}
+func NewArrayMap(cap int32, fixedArray bool) *ArrayMap {
+	m := &ArrayMap{
+		cap:        cap,
+		rawCap:     cap,
+		genArray:   make([]interface{}, cap),
+		delArray:   make([]int32, cap),
+		generArray: make([]int32, cap),
+		genIndex:   -1,
+		delIndex:   -1,
 	}
-	if id == -1 {
-		id = atomic.AddInt32(&r.genIndex, 1)
-		if id >= int32(len(r.genArray)) {
-			r.Lock()
-			if id >= int32(len(r.genArray)) {
-				newArray := make([]interface{}, r.rawCap)
-				r.genArray = append(r.genArray, newArray...)
-				newDelArray := make([]int32, r.rawCap)
-				r.delArray = append(r.delArray, newDelArray...)
-			}
-			r.Unlock()
-		}
+	if fixedArray {
+		m.genIndex = cap - 1
 	}
-
-	r.genArray[id] = value
-	return id
+	return m
 }
 
-func (r *arrayMap) delSafe(index int32) {
-	id := atomic.AddInt32(&r.delIndex, 1)
-	r.delArray[id] = index
-}
-
-func (r *arrayMap) Add(value interface{}) int32 {
-	if r.safe {
-		return r.addSafe(value)
-	}
-	return r.add(value)
-}
-
-func (r *arrayMap) Del(index int32) {
-	if r.safe {
-		r.delSafe(index)
-	} else {
-		r.del(index)
-	}
-}
-func (r *arrayMap) Len() int32 {
-	return r.genIndex - r.delIndex
-}
-
-func (r *arrayMap) Get(index int32) interface{} {
-	return r.genArray[index]
-}
-
-func (r *arrayMap) add(value interface{}) int32 {
-	var id int32 = -1
-	if r.delIndex > 0 {
-		id = r.delArray[r.delIndex]
+func (r *ArrayMap) Add(value interface{}) int32 {
+	var index int32 = -1
+	if r.delIndex >= 0 {
+		index = r.delArray[r.delIndex]
 		r.delIndex--
 	}
-	if id == -1 {
-		id = r.genIndex + 1
-		if id >= int32(len(r.genArray)) {
+	if index == -1 {
+		index = r.genIndex + 1
+		r.genIndex++
+		if index >= r.cap {
 			newArray := make([]interface{}, r.rawCap)
 			r.genArray = append(r.genArray, newArray...)
 			newDelArray := make([]int32, r.rawCap)
 			r.delArray = append(r.delArray, newDelArray...)
+			newDelArray = make([]int32, r.rawCap)
+			r.generArray = append(r.generArray, newDelArray...)
+			r.cap += r.rawCap
 		}
 	}
-	r.genIndex++
-	r.genArray[id] = value
-	return id
+	r.genArray[index] = value
+	return index + (r.generArray[index] << 16)
 }
 
-func (r *arrayMap) del(index int32) {
-	id := r.delIndex + 1
-	r.delArray[id] = index
+func (r *ArrayMap) Set(key int32, value interface{}) {
+	index := key & 0x0000FFFF
+	r.genArray[index] = value
+}
+
+func (r *ArrayMap) Del(key int32) {
+	index := key & 0x0000FFFF
+	r.delArray[r.delIndex+1] = index
+	r.genArray[index] = nil
+	r.generArray[index]++
 	r.delIndex++
+}
+func (r *ArrayMap) RawLen() int32 {
+	return r.genIndex + 1
+}
+func (r *ArrayMap) RawGet(key int32) interface{} {
+	if key >= r.cap {
+		return nil
+	}
+	return r.genArray[key]
+}
+func (r *ArrayMap) Get(key int32) interface{} {
+	index := key & 0x0000FFFF
+	gener := key >> 16
+	if index >= r.cap {
+		return nil
+	}
+	if gener != r.generArray[index] {
+		return nil
+	}
+
+	return r.genArray[index]
 }

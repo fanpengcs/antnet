@@ -24,6 +24,7 @@ antnet尽可能把功能相关的代码组织到一块，让你能快速找到�
 [UDP设计](https://zhuanlan.zhihu.com/p/41572002)   
 [TCP设计（1）](https://zhuanlan.zhihu.com/p/43055894)   
 [日志设计](https://zhuanlan.zhihu.com/p/43775835)   
+[数组Map](https://zhuanlan.zhihu.com/p/160824599)   
 
 ## 为什么选择antnet    
 antnet在很多方面和市面上常见的框架都很不一样，因为antnet想充分利用go的特性，而非用c++写go，拿antnet的全局消息举例：   
@@ -51,13 +52,17 @@ antnet已服务全球数千万玩家，部分商业游戏案例：
 2.值写入了一半，如果对32位的值在16位架构下面确实可能，但现在服务器基本都是64位架构的，亦不存在此问题。
 
 ## 微信小程序
-antnet也支持H5研发，目前全行业首款手游级H5即将6月上线
+antnet也支持H5研发，且为全行业唯一手游级H5产品。   
+微信搜索《美食大战老鼠2》《街机三国3》或者微信扫码，即可体验   
+![](https://gitee.com/magiclvzs/pic/raw/master/jjsg.jpg)
+![](https://gitee.com/magiclvzs/pic/raw/master/ms.jpg)
+
 
 ## 测试框架
 https://github.com/magiclvzs/wsserver   
 wsserver是一个websocket的测试框架，用于展示如何使用antnet   
 只有不到60行逻辑代码，实现了基于websocket+protobuf的聊天系统   
-antnet的正式框架为union，只是有些细节我还在斟酌，想好之后才会上传代码   
+antnet的正式框架为union，由于商业性原因，暂时无法开源   
 
 ## 架构
 |---------------------------------------------------|   

@@ -97,7 +97,7 @@ func (r *Redis) Script(cmd int, keys []string, args ...interface{}) (interface{}
 	if ok {
 		re, err = r.EvalSha(hashStr.(string), keys, args...).Result()
 	}
-	if err != nil {
+	if RedisError(err) {
 		scriptStr, ok := scriptMap.Load(cmd)
 		if !ok {
 			LogError("redis script error cmd not found cmd:%v", cmd)
@@ -113,7 +113,7 @@ func (r *Redis) Script(cmd int, keys []string, args ...interface{}) (interface{}
 			}
 			scriptHashMap.Store(cmd, hashStr.(string))
 			re, err = r.EvalSha(hashStr.(string), keys, args...).Result()
-			if err == nil {
+			if !RedisError(err) {
 				return re, nil
 			}
 		}
@@ -224,7 +224,7 @@ func (r *RedisManager) Add(id int, conf *RedisConfig) {
 					msg, err := pubsub.ReceiveMessage()
 					if err == nil {
 						Go(func() { r.fun(msg.Channel, msg.Payload) })
-					} else if _, ok := err.(net.Error); !ok {
+					} else if _, ok := err.(net.Error); !ok && IsRuning() {
 						if err.Error() != "redis: reply is empty" {
 							LogFatal("[redis]pubsub broken err:%v", err)
 							break
